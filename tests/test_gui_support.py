@@ -3,7 +3,9 @@
 import base64
 import sys
 import tempfile
+import subprocess
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -75,6 +77,14 @@ class DeathSpeechTests(unittest.TestCase):
         self.assertNotIn("Fethi", " ".join(cmd))
         b64 = cmd[-1].split("'")[1]
         self.assertEqual(base64.b64decode(b64).decode("utf-8"), "Fethi'nin \"malı\"")
+
+    def test_speak_failure_is_reported(self):
+        said = []
+        err = subprocess.CalledProcessError(1, "powershell")
+        with mock.patch.object(bot.subprocess, "run", side_effect=err),                 mock.patch.object(bot, "say", said.append):
+            bot.speak("merhaba")
+        self.assertEqual(len(said), 1)
+        self.assertTrue(said[0].startswith("[Uyarı] Konuşma çalışmadı"))
 
 
 KEYS = [{"key": "1", "every_sec": 2, "when": "fight"},

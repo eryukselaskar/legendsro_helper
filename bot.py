@@ -551,6 +551,7 @@ def speech_command(text):
     b64 = base64.b64encode(text.encode("utf-8")).decode("ascii")
     script = (
         f"$t = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{b64}')); "
+        "$ErrorActionPreference = [Management.Automation.ActionPreference]::Stop; "
         "Add-Type -AssemblyName System.Speech; "
         "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
         "$v = $s.GetInstalledVoices() | Where-Object { $_.VoiceInfo.Culture.Name -eq 'tr-TR' } "
@@ -564,7 +565,7 @@ def speech_command(text):
 def speak(text):
     """Cümleyi sesli söyler; takılırsa 30 sn sonra vazgeçer."""
     try:
-        subprocess.run(speech_command(text), timeout=30,
+        subprocess.run(speech_command(text), timeout=30, check=True, capture_output=True,
                        creationflags=subprocess.CREATE_NO_WINDOW)
     except Exception as e:
         say(f"[Uyarı] Konuşma çalışmadı: {e}")
