@@ -1,0 +1,134 @@
+{
+  "window_title": "Legends Online",
+  "skill_keys": [],
+  "target_bar": {
+    "x": 1177,
+    "y": 45,
+    "width": 206
+  },
+  "player_hp_bar": {
+    "x": 83,
+    "y": 39,
+    "width": 124
+  },
+  "red_color": {
+    "r_min": 150,
+    "g_max": 70,
+    "b_max": 70
+  },
+  "target_search": {
+    "x_min": 240,
+    "x_max": 2300,
+    "y_min": 15,
+    "y_max": 110
+  },
+  "target_bar_min_run_px": 40,
+  "target_present_ratio": 0.05,
+  "bar_track_color": [
+    49,
+    52,
+    49
+  ],
+  "bar_track_tolerance": 15,
+  "target_window_ratio": 0.8,
+  "dead_hp_ratio": 0.0,
+  "kill_min_damage": 0.02,
+  "player_dead_ratio": 0.01,
+  "camera_drag_px": 400,
+  "camera_drag_step_px": 15,
+  "camera_drag_step_sec": 0.01,
+  "hover_wait_sec": 0.045,
+  "label": {
+    "white_min": 200,
+    "min_w": 25,
+    "max_w": 140,
+    "min_h": 8,
+    "max_h": 20,
+    "min_fill": 0.12,
+    "max_fill": 0.6
+  },
+  "ui_margins": {
+    "top": 120,
+    "bottom": 260,
+    "top_left_w": 240,
+    "top_left_h": 210,
+    "top_right_w": 160,
+    "top_right_h": 235
+  },
+  "self_label": {
+    "dx": 22,
+    "dy": -66,
+    "max_dist_px": 40
+  },
+  "misses_before_rotate": 3,
+  "label_merge_px": 60,
+  "body_offsets_px": [
+    35,
+    70,
+    110
+  ],
+  "max_labels_per_search": 8,
+  "bad_spot_radius_px": 70,
+  "bad_spot_ttl_sec": 8,
+  "click_hold_sec": 0.05,
+  "after_click_wait_sec": 0.4,
+  "check_interval_sec": 0.4,
+  "no_target_wait_sec": 0.8,
+  "after_kill_wait_sec": 0.4,
+  "foreground_wait_sec": 2.0,
+  "stats_interval_sec": 30,
+  "key_hold_sec": 0.06,
+  "jitter_ratio": 0.15,
+  "optimizer": {
+    "trial_minutes": 2,
+    "min_improvement": 0.05,
+    "recheck_every": 4,
+    "patience": 10
+  },
+  "coords_text": {
+    "right": 125,
+    "y": 35,
+    "width": 125,
+    "height": 9
+  },
+  "area": {
+    "enabled": true,
+    "radius": 50,
+    "arrive_radius": 15,
+    "walk_click_px": 250,
+    "walk_wait_sec": 1.5,
+    "min_move": 3,
+    "max_walk_steps": 20,
+    "no_ground_wait_sec": 0.5
+  },
+  "stuck_sec": 6,
+  "stuck_before_rotate": 2,
+  "target_poll_sec": 0.05,
+  "normal_cursor_ttl_sec": 30,
+  "cursor_reset_min_clicks": 3,
+  "zerk": {
+    "enabled": true,
+    "key": "tab",
+    "orb": {
+      "x": 29,
+      "y": 11,
+      "radius": 5
+    },
+    "min_ratio": 0.5,
+    "cooldown_sec": 5
+  },
+  "miss_shots": {
+    "enabled": true,
+    "folder": "misses",
+    "max_files": 200
+  },
+  "target_close": {
+    "template": "templates/target_close.png",
+    "dx": 198,
+    "dy": 30,
+    "min_score": 0.9,
+    "bar_dark_max": 90,
+    "bar_fill_min": 0.85
+  },
+  "fight_timeout_sec": 40
+}

@@ -1,0 +1,57 @@
+{
+  "window_title": "Legends Online",
+  "skill_keys": [],
+  "target_bar": {
+    "x": 1179,
+    "y": 72,
+    "width": 205
+  },
+  "player_hp_bar": {
+    "x": 86,
+    "y": 65,
+    "width": 124
+  },
+  "red_color": {
+    "r_min": 150,
+    "g_max": 70,
+    "b_max": 70
+  },
+  "target_search": {
+    "x_min": 240,
+    "x_max": 1740,
+    "y_min": 40,
+    "y_max": 130
+  },
+  "target_bar_min_run_px": 40,
+  "target_present_ratio": 0.05,
+  "bar_track_color": [49, 52, 49],
+  "bar_track_tolerance": 15,
+  "target_window_ratio": 0.8,
+  "dead_hp_ratio": 0.0,
+  "kill_min_damage": 0.02,
+  "player_dead_ratio": 0.01,
+  "scan_radius_px": 450,
+  "scan_step_px": 40,
+  "camera_drag_px": 300,
+  "camera_drag_step_px": 15,
+  "camera_drag_step_sec": 0.01,
+  "hover_wait_sec": 0.025,
+  "bad_spot_radius_px": 70,
+  "bad_spot_ttl_sec": 8,
+  "click_hold_sec": 0.05,
+  "after_click_wait_sec": 0.4,
+  "fight_timeout_sec": 40,
+  "check_interval_sec": 0.5,
+  "no_target_wait_sec": 1.0,
+  "after_kill_wait_sec": 0.5,
+  "foreground_wait_sec": 2.0,
+  "stats_interval_sec": 30,
+  "key_hold_sec": 0.06,
+  "jitter_ratio": 0.15,
+  "optimizer": {
+    "trial_minutes": 5,
+    "min_improvement": 0.05,
+    "recheck_every": 4,
+    "patience": 10
+  }
+}
