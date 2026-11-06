@@ -11,7 +11,11 @@ import queue
 import threading
 import time
 
-import customtkinter as ctk
+try:
+    import customtkinter as ctk
+except ImportError:
+    print("customtkinter yüklü değil. Şunu çalıştır: pip install -r requirements.txt")
+    raise SystemExit(1)
 
 import bot
 import settings_rules as rules
@@ -122,8 +126,8 @@ class App(ctk.CTk):
         self.bot_state, self.cfg, self.config_path = state, cfg, config_path
         self.bot_thread = None
         self.title("Legends Bot")
-        self.geometry("440x680")
-        self.minsize(420, 560)
+        self.geometry("420x640")
+        self.minsize(420, 600)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.build_status()
@@ -168,7 +172,7 @@ class App(ctk.CTk):
             self.stat_labels[name] = value
 
     def build_tabs(self):
-        self.tabs = ctk.CTkTabview(self, height=270, fg_color=CARD, corner_radius=12,
+        self.tabs = ctk.CTkTabview(self, height=230, fg_color=CARD, corner_radius=12,
                                    segmented_button_selected_color=ACCENT,
                                    segmented_button_selected_hover_color=ACCENT_HOVER,
                                    segmented_button_fg_color=CARD_2,
@@ -184,7 +188,7 @@ class App(ctk.CTk):
         for text, width in (("Tuş", 72), ("Her (sn)", 72), ("Ne zaman", 0)):
             ctk.CTkLabel(head, text=text, width=width, anchor="w", font=font(11),
                          text_color=MUTED).pack(side="left", padx=(10 if text == "Tuş" else 0, 0))
-        self.keys_list = ctk.CTkScrollableFrame(tab, fg_color="transparent", height=160)
+        self.keys_list = ctk.CTkScrollableFrame(tab, fg_color="transparent", height=120)
         self.keys_list.pack(fill="both", expand=True)
         self.key_rows = [KeyRow(self, k) for k in bot.normalize_keys(self.cfg.get("skill_keys", []))]
         ctk.CTkButton(tab, text="+ Tuş ekle", height=32, font=font(13), fg_color=CARD_2,
@@ -233,7 +237,8 @@ class App(ctk.CTk):
         switch(3, "Kaçırma görüntüleri", "miss_shots")
         self.settings["death_say"] = field(4, "Ölünce söyle", cfg.get("death_say", ""), str.strip,
                                            lambda v: cfg.update(death_say=v), width=200)
-        ctk.CTkLabel(tab, text="Boş bırakılırsa ölünce konuşmaz.", font=font(11),
+        ctk.CTkLabel(tab, text="ses.mp3 varsa o çalınır; yoksa bu cümle söylenir (boşsa sessiz).",
+                     font=font(11), wraplength=370, justify="left",
                      text_color=MUTED).grid(row=5, column=0, columnspan=2, sticky="w", padx=8)
 
     def build_messages(self):
@@ -246,7 +251,10 @@ class App(ctk.CTk):
 
     def apply(self, change):
         change()
-        bot.save_config(self.cfg, self.config_path)
+        try:
+            bot.save_config(self.cfg, self.config_path)
+        except Exception as e:
+            bot.say(f"[Uyarı] Ayar kaydedilemedi: {e}")
 
     def commit_field(self, widget, parse, store):
         """Kutudaki değeri doğrular; geçerliyse cfg'ye yazıp kaydeder, değilse kırmızı yapar."""

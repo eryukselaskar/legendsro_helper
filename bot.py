@@ -582,6 +582,7 @@ def sound_command(path):
         "$p.Open([Uri]$f); "
         "$n = 0; "
         "while (-not $p.NaturalDuration.HasTimeSpan -and $n -lt 50) { Start-Sleep -Milliseconds 100; $n++ }; "
+        "if (-not $p.NaturalDuration.HasTimeSpan) { exit 1 }; "
         "$p.Play(); "
         "if ($p.NaturalDuration.HasTimeSpan) { Start-Sleep -Milliseconds ([int]$p.NaturalDuration.TimeSpan.TotalMilliseconds + 300) }; "
         "$p.Close()"
@@ -590,12 +591,14 @@ def sound_command(path):
 
 
 def play_sound(path):
-    """Ses dosyasını çalar; takılırsa 30 sn sonra vazgeçer."""
+    """Ses dosyasını çalar; takılırsa 30 sn sonra vazgeçer. Çaldıysa True, olmadıysa False."""
     try:
         subprocess.run(sound_command(path), timeout=30, check=True, capture_output=True,
                        creationflags=subprocess.CREATE_NO_WINDOW)
+        return True
     except Exception as e:
         say(f"[Uyarı] Ses çalınamadı: {e}")
+        return False
 
 
 def handle_death(state, cfg):
@@ -609,8 +612,8 @@ def handle_death(state, cfg):
     if sound:
         path = Path(__file__).parent / sound   # mutlak yol olduğu gibi kalır
         if path.is_file():
-            play_sound(path)
-            return
+            if play_sound(path):
+                return
     text = cfg.get("death_say", "")
     if text:
         speak(text)
@@ -663,8 +666,11 @@ def is_stuck(start_hp, min_hp, elapsed, cfg):
 
 def normalize_keys(raw):
     """skill_keys'i [{"key", "every_sec", "when"}] biçimine çevirir (eski ["1", "2"] listesi dahil)."""
-    return [{"key": k, "every_sec": 0, "when": "fight"} if isinstance(k, str) else k
+    keys = [{"key": k, "every_sec": 0, "when": "fight"} if isinstance(k, str) else dict(k)
             for k in raw]
+    for k in keys:
+        k["key"] = k["key"].lower()   # pydirectinput sadece küçük harfli adları ("f1") tanır
+    return keys
 
 
 def due_keys(state, keys, in_fight, now):

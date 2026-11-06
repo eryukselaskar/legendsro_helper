@@ -3,4 +3,4 @@ mss
 numpy
 PyDirectInput
 PyGetWindow
-customtkinter
+customtkinter==6.0.0

@@ -49,6 +49,20 @@ class GuiSupportTests(unittest.TestCase):
                           {"key": "2", "every_sec": 0, "when": "fight"}])
         self.assertEqual(bot.normalize_keys(KEYS), KEYS)
 
+    def test_key_names_lowercased(self):
+        self.assertEqual(bot.normalize_keys(["F1"])[0]["key"], "f1")
+        self.assertEqual(bot.normalize_keys([{"key": "F1", "every_sec": 5, "when": "always"}]),
+                         [{"key": "f1", "every_sec": 5, "when": "always"}])
+
+    def test_gui_save_failure_is_reported(self):
+        import gui
+        said = []
+        fake = mock.Mock(cfg={"a": 1}, config_path=Path("yok_dizin_xyz") / "config.json")
+        with mock.patch.object(bot, "say", said.append):
+            gui.App.apply(fake, lambda: None)
+        self.assertEqual(len(said), 1)
+        self.assertTrue(said[0].startswith("[Uyarı] Ayar kaydedilemedi"))
+
 
 class DeathSpeechTests(unittest.TestCase):
     def setUp(self):
@@ -92,7 +106,7 @@ class DeathSpeechTests(unittest.TestCase):
     def test_death_plays_sound_instead_of_speaking(self):
         said, played = [], []
         bot.speak, bot.death_alarm = said.append, lambda: None
-        bot.play_sound = played.append
+        bot.play_sound = lambda p: played.append(p) or True
         with tempfile.TemporaryDirectory() as d:
             mp3 = Path(d) / "ses.mp3"
             mp3.write_bytes(b"x")
@@ -103,7 +117,7 @@ class DeathSpeechTests(unittest.TestCase):
     def test_missing_sound_falls_back_to_speech(self):
         said, played = [], []
         bot.speak, bot.death_alarm = said.append, lambda: None
-        bot.play_sound = played.append
+        bot.play_sound = lambda p: played.append(p) or True
         with tempfile.TemporaryDirectory() as d:
             bot.handle_death(bot.BotState(), {"death_sound": str(Path(d) / "yok.mp3"),
                                               "death_say": "x"})
@@ -124,6 +138,32 @@ class DeathSpeechTests(unittest.TestCase):
             bot.play_sound(Path("ses.mp3"))
         self.assertEqual(len(said), 1)
         self.assertTrue(said[0].startswith("[Uyarı] Ses çalınamadı"))
+
+    def test_play_sound_returns_false_on_failure(self):
+        err = subprocess.CalledProcessError(1, "powershell")
+        with mock.patch.object(bot.subprocess, "run", side_effect=err),                 mock.patch.object(bot, "say"):
+            self.assertFalse(bot.play_sound(Path("ses.mp3")))
+
+    def test_play_sound_returns_true_on_success(self):
+        with mock.patch.object(bot.subprocess, "run"):
+            self.assertTrue(bot.play_sound(Path("ses.mp3")))
+
+    def test_unplayable_sound_falls_back_to_speech(self):
+        said = []
+        bot.speak, bot.death_alarm = said.append, lambda: None
+        bot.play_sound = lambda p: False
+        with tempfile.TemporaryDirectory() as d:
+            mp3 = Path(d) / "ses.mp3"
+            mp3.write_bytes(b"x")
+            bot.handle_death(bot.BotState(), {"death_sound": str(mp3), "death_say": "x"})
+        self.assertEqual(said, ["x"])
+
+    def test_sound_script_exits_when_media_unopenable(self):
+        script = bot.sound_command(Path("ses.mp3"))[-1]
+        self.assertIn("if (-not $p.NaturalDuration.HasTimeSpan) { exit 1 };", script)
+        self.assertLess(script.index("exit 1"), script.index("$p.Play()"))
+        self.assertNotIn('"', script)
+        self.assertEqual(len(script.split("'")[1]) % 4, 0)
 
 
 class SettingsRulesTests(unittest.TestCase):
