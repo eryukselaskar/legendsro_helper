@@ -1105,12 +1105,12 @@ def bot_step(state, sct, window, cfg):
 
 def main_loop(state, cfg):
     """Durdurulana kadar bot turlarını çalıştırır."""
-    title = cfg["window_title"]
     with mss.mss() as sct:
         while not state.stop_event.is_set():
             if not state.running:
                 state.stop_event.wait(0.2)
                 continue
+            title = cfg["window_title"]   # arayüzden değişirse bir sonraki turda uygulanır
             window = find_game_window(title)
             if window is None or not is_game_foreground(title):
                 say(f"[Uyarı] '{title}' penceresi ön planda değil, bekleniyor...")

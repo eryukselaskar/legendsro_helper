@@ -108,8 +108,27 @@ class SettingsRulesTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     fn(bad)
 
+    def test_main_loop_uses_new_window_title_next_turn(self):
+        state = bot.BotState()
+        state.running = True
+        cfg = {"window_title": "Eski", "foreground_wait_sec": 0}
+        titles = []
 
-KEYS = [{"key": "1", "every_sec": 2, "when": "fight"},
+        def fake_find(title):
+            titles.append(title)
+            cfg["window_title"] = "Yeni"   # arayüzde pencere adı değişti
+            if len(titles) == 2:
+                state.stop_event.set()
+            return None
+
+        with mock.patch.object(bot, "find_game_window", side_effect=fake_find), \
+                mock.patch.object(bot.mss, "mss"), mock.patch.object(bot, "log_event"), \
+                mock.patch.object(bot, "say"):
+            bot.main_loop(state, cfg)
+        self.assertEqual(titles, ["Eski", "Yeni"])
+
+
+KEYS =[{"key": "1", "every_sec": 2, "when": "fight"},
         {"key": "f1", "every_sec": 300, "when": "always"}]
 
 
