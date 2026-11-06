@@ -212,3 +212,16 @@ KEYS =[{"key": "1", "every_sec": 2, "when": "fight"},
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AppDirTests(unittest.TestCase):
+    """Exe olarak paketlenince config, ses ve şablonlar exe'nin yanından okunur."""
+
+    def test_frozen_uses_exe_folder(self):
+        with mock.patch.object(sys, "frozen", True, create=True), \
+                mock.patch.object(sys, "executable", r"C:\Oyun\LegendsRO Helper\LegendsRO Helper.exe"):
+            self.assertEqual(bot.app_dir(), Path(r"C:\Oyun\LegendsRO Helper"))
+
+    def test_script_uses_source_folder(self):
+        self.assertEqual(bot.app_dir(), Path(bot.__file__).parent)
+        self.assertEqual(bot.CONFIG_PATH, bot.APP_DIR / "config.json")

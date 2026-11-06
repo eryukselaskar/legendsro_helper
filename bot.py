@@ -65,6 +65,7 @@ import queue
 import random
 import re
 import subprocess
+import sys
 import threading
 import time
 import types
@@ -77,8 +78,17 @@ import numpy as np
 import pydirectinput
 import pygetwindow as gw
 
-CONFIG_PATH = Path(__file__).with_name("config.json")
-LOG_PATH = Path(__file__).with_name("bot_log.jsonl")
+def app_dir():
+    """Programın klasörü: exe olarak paketlendiyse exe'nin yanı, değilse bot.py'nin yanı.
+    config.json, ses, şablonlar ve kayıtlar buradan okunur/yazılır."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
+
+APP_DIR = app_dir()
+CONFIG_PATH = APP_DIR / "config.json"
+LOG_PATH = APP_DIR / "bot_log.jsonl"
 
 VK_F11 = 0x7A
 VK_END = 0x23
@@ -277,7 +287,7 @@ def close_template(cfg):
     """Hedef penceresinin kapatma (X) düğmesi şablonu (bir kez yüklenir)."""
     global _close_template
     if _close_template is None:
-        path = Path(__file__).parent / cfg["target_close"]["template"]
+        path = APP_DIR / cfg["target_close"]["template"]
         _close_template = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
     return _close_template
 
@@ -610,7 +620,7 @@ def handle_death(state, cfg):
     death_alarm()
     sound = cfg.get("death_sound", "")
     if sound:
-        path = Path(__file__).parent / sound   # mutlak yol olduğu gibi kalır
+        path = APP_DIR / sound   # mutlak yol olduğu gibi kalır
         if path.is_file():
             if play_sound(path):
                 return
@@ -898,7 +908,7 @@ def save_miss_shot(pixels, cfg, point=None):
     shots = cfg["miss_shots"]
     folder = Path(shots["folder"])
     if not folder.is_absolute():
-        folder = Path(__file__).parent / folder
+        folder = APP_DIR / folder
     folder.mkdir(exist_ok=True)
     count = len(list(folder.glob("*.png")))
     if count >= shots["max_files"]:
