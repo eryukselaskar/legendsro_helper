@@ -53,9 +53,11 @@ class GuiSupportTests(unittest.TestCase):
 class DeathSpeechTests(unittest.TestCase):
     def setUp(self):
         self._speak, self._alarm = bot.speak, bot.death_alarm
+        self._play = bot.play_sound
 
     def tearDown(self):
         bot.speak, bot.death_alarm = self._speak, self._alarm
+        bot.play_sound = self._play
 
     def test_death_speaks_message(self):
         said = []
@@ -86,6 +88,42 @@ class DeathSpeechTests(unittest.TestCase):
             bot.speak("merhaba")
         self.assertEqual(len(said), 1)
         self.assertTrue(said[0].startswith("[Uyarı] Konuşma çalışmadı"))
+
+    def test_death_plays_sound_instead_of_speaking(self):
+        said, played = [], []
+        bot.speak, bot.death_alarm = said.append, lambda: None
+        bot.play_sound = played.append
+        with tempfile.TemporaryDirectory() as d:
+            mp3 = Path(d) / "ses.mp3"
+            mp3.write_bytes(b"x")
+            bot.handle_death(bot.BotState(), {"death_sound": str(mp3), "death_say": "x"})
+        self.assertEqual(played, [mp3])
+        self.assertEqual(said, [])
+
+    def test_missing_sound_falls_back_to_speech(self):
+        said, played = [], []
+        bot.speak, bot.death_alarm = said.append, lambda: None
+        bot.play_sound = played.append
+        with tempfile.TemporaryDirectory() as d:
+            bot.handle_death(bot.BotState(), {"death_sound": str(Path(d) / "yok.mp3"),
+                                              "death_say": "x"})
+        self.assertEqual(said, ["x"])
+        self.assertEqual(played, [])
+
+    def test_sound_command_survives_turkish_path(self):
+        path = Path("C:/Başlangıç Aşamasında/ses.mp3")
+        cmd = bot.sound_command(path)
+        self.assertNotIn("Başlangıç", " ".join(cmd))
+        b64 = cmd[-1].split("'")[1]
+        self.assertEqual(base64.b64decode(b64).decode("utf-8"), str(path))
+
+    def test_play_sound_failure_is_reported(self):
+        said = []
+        err = subprocess.CalledProcessError(1, "powershell")
+        with mock.patch.object(bot.subprocess, "run", side_effect=err),                 mock.patch.object(bot, "say", said.append):
+            bot.play_sound(Path("ses.mp3"))
+        self.assertEqual(len(said), 1)
+        self.assertTrue(said[0].startswith("[Uyarı] Ses çalınamadı"))
 
 
 class SettingsRulesTests(unittest.TestCase):

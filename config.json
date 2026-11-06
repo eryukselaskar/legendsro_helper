@@ -132,5 +132,6 @@
     "bar_fill_min": 0.85
   },
   "fight_timeout_sec": 40,
-  "death_say": "Sen bir malsın Fethi"
+  "death_say": "Sen bir malsın Fethi",
+  "death_sound": "ses.mp3"
 }

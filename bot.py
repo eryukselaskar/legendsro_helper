@@ -571,12 +571,46 @@ def speak(text):
         say(f"[Uyarı] Konuşma çalışmadı: {e}")
 
 
+def sound_command(path):
+    """Ses dosyasını çalan PowerShell komutu. Yol base64 ile taşınır (Türkçe karakter/boşluk)."""
+    b64 = base64.b64encode(str(path).encode("utf-8")).decode("ascii")
+    script = (
+        f"$f = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{b64}')); "
+        "$ErrorActionPreference = [Management.Automation.ActionPreference]::Stop; "
+        "Add-Type -AssemblyName PresentationCore; "
+        "$p = New-Object System.Windows.Media.MediaPlayer; "
+        "$p.Open([Uri]$f); "
+        "$n = 0; "
+        "while (-not $p.NaturalDuration.HasTimeSpan -and $n -lt 50) { Start-Sleep -Milliseconds 100; $n++ }; "
+        "$p.Play(); "
+        "if ($p.NaturalDuration.HasTimeSpan) { Start-Sleep -Milliseconds ([int]$p.NaturalDuration.TimeSpan.TotalMilliseconds + 300) }; "
+        "$p.Close()"
+    )
+    return ["powershell", "-NoProfile", "-Command", script]
+
+
+def play_sound(path):
+    """Ses dosyasını çalar; takılırsa 30 sn sonra vazgeçer."""
+    try:
+        subprocess.run(sound_command(path), timeout=30, check=True, capture_output=True,
+                       creationflags=subprocess.CREATE_NO_WINDOW)
+    except Exception as e:
+        say(f"[Uyarı] Ses çalınamadı: {e}")
+
+
 def handle_death(state, cfg):
-    """Karakter öldüğünde botu durdurur, uyarı verir ve cümleyi söyler."""
+    """Karakter öldüğünde botu durdurur, uyarı verir; ses dosyası varsa onu çalar,
+    yoksa cümleyi söyler."""
     say("[!] Karakter öldü. Bot durduruluyor.")
     state.dead = True
     state.stop_event.set()
     death_alarm()
+    sound = cfg.get("death_sound", "")
+    if sound:
+        path = Path(__file__).parent / sound   # mutlak yol olduğu gibi kalır
+        if path.is_file():
+            play_sound(path)
+            return
     text = cfg.get("death_say", "")
     if text:
         speak(text)
