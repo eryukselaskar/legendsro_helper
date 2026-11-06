@@ -132,12 +132,14 @@ class WalkNoGroundTest(unittest.TestCase):
     def test_no_ground_resets_cursor_and_waits(self):
         # 01:32'deki durum: bayat imleç yüzünden her nokta "mob" göründü, geri yürüme
         # hemen vazgeçti ve bekleme olmadan 113 kez tekrarlandı.
-        names = ("read_coords", "is_game_foreground", "hover_shows_mob", "log_event", "wait")
+        names = ("read_coords", "is_game_foreground", "move_mouse", "stable_cursor", "log_event",
+                 "wait")
         originals = {n: getattr(bot, n) for n in names}
         waits = []
         bot.read_coords = lambda *a: (80, 0)
         bot.is_game_foreground = lambda title: True
-        bot.hover_shows_mob = lambda *a: True
+        bot.move_mouse = lambda x, y: None
+        bot.stable_cursor = lambda cfg: 456   # her nokta normalden (123) farklı
         bot.log_event = lambda *a, **k: None
         bot.wait = lambda state, seconds, cfg: waits.append(seconds)
         try:
@@ -150,6 +152,65 @@ class WalkNoGroundTest(unittest.TestCase):
             self.assertTrue(bot.keep_in_area(state, None, window, cfg))
             self.assertIsNone(state.normal_cursor)
             self.assertEqual(waits, [cfg["area"]["no_ground_wait_sec"]])
+        finally:
+            for n, f in originals.items():
+                setattr(bot, n, f)
+
+
+class ClickGroundTest(unittest.TestCase):
+    """Saldırı imleci öğrenildiyse yere tıklamayı sadece o engeller; oyuncu, item ya da
+    farklı yer imleci boş yer sayılır. Öğrenilmediyse normalden farklı her imleç engeller."""
+
+    def setUp(self):
+        names = ("move_mouse", "stable_cursor", "click_mouse")
+        self.originals = {n: getattr(bot, n) for n in names}
+        self.clicks = []
+        bot.move_mouse = lambda x, y: None
+        bot.click_mouse = lambda *a: self.clicks.append(1)
+        bot.stable_cursor = lambda cfg: 9          # her noktada oyuncu/item imleci
+        self.cfg = bot.load_config()
+        self.window = bot.types.SimpleNamespace(left=0, top=0, width=2560, height=1440)
+
+    def tearDown(self):
+        for n, f in self.originals.items():
+            setattr(bot, n, f)
+
+    def test_non_attack_cursor_does_not_block_once_learned(self):
+        state = bot.BotState()
+        state.attack_cursors = {7}
+        self.assertTrue(bot.click_ground(state, self.window, 0.0, 1, self.cfg))
+        self.assertEqual(self.clicks, [1])
+
+    def test_attack_cursor_blocks(self):
+        state = bot.BotState()
+        state.attack_cursors = {9}
+        self.assertFalse(bot.click_ground(state, self.window, 0.0, 1, self.cfg))
+        self.assertEqual(self.clicks, [])
+
+    def test_any_other_cursor_blocks_until_learned(self):
+        state = bot.BotState()
+        self.assertFalse(bot.click_ground(state, self.window, 0.0, 1, self.cfg))
+
+
+class HoverLimitTest(unittest.TestCase):
+    """Başarılı aramaların %95'i ilk 12 noktada hedef bulur; boşa giden arama orada kesilir."""
+
+    def test_search_stops_after_max_hovers(self):
+        names = ("move_mouse", "stable_cursor", "is_game_foreground", "cached_normal_cursor")
+        originals = {n: getattr(bot, n) for n in names}
+        bot.move_mouse = lambda x, y: None
+        bot.stable_cursor = lambda cfg: 1                 # her yerde normal imleç: mob yok
+        bot.is_game_foreground = lambda title: True
+        bot.cached_normal_cursor = lambda *a: 1
+        try:
+            cfg = bot.load_config()
+            cfg["max_hovers_per_search"] = 5
+            state = bot.BotState()
+            state.running = True
+            window = bot.types.SimpleNamespace(left=0, top=0, width=2560, height=1440)
+            candidates = [[(100 * i, 100 * j) for j in range(3)] for i in range(1, 9)]
+            self.assertEqual(bot.pick_candidate(state, None, window, candidates, cfg), "missed")
+            self.assertEqual(state.search_hovers, 5)
         finally:
             for n, f in originals.items():
                 setattr(bot, n, f)

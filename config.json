@@ -68,6 +68,7 @@
     110
   ],
   "max_labels_per_search": 8,
+  "max_hovers_per_search": 12,
   "bad_spot_radius_px": 70,
   "bad_spot_ttl_sec": 8,
   "click_hold_sec": 0.05,

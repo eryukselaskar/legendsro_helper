@@ -49,6 +49,8 @@ VARSAYIMLAR
   aramada kamera dönerken öğrenilenler unutulur (oyun imleci değiştirirse takılmasın).
 - Boşa giden her mob tıklamasının 200x200 görüntüsü (tıklama noktası yeşil artı ile işaretli)
   "miss_shots" klasörüne (varsayılan "misses") kaydedilir; "max_files" dolunca durur.
+- Bir aramada fare en fazla "max_hovers_per_search" noktaya götürülür (log'a göre başarılı
+  aramaların %95'i ilk 12 noktada hedef buluyor); sonrası boşa giden arama sayılır.
 - Her arama ve dövüş bot_log.jsonl'a yazılır (süre, fare gezdirme, tıklama, sonuç).
 - Bot çalışırken fareyi kullanma; bot fareyi kendisi hareket ettirir.
 - F11 / End kısayolları global olarak okunur (oyun ön plandayken de çalışır).
@@ -860,6 +862,8 @@ def pick_candidate(state, sct, window, candidates, cfg):
                 return "missed"
             if not is_game_foreground(cfg["window_title"]):
                 return "missed"   # başka pencereye tıklamamak için
+            if state.search_hovers >= cfg["max_hovers_per_search"]:
+                return "missed"   # başarılı aramaların %95'i bu sınırdan önce hedef bulur
             if try_click_mob(state, sct, window, x, y, normal, cfg):
                 return "selected"
     return "missed"
@@ -894,15 +898,17 @@ def learned_offset(before, after, screen_angle):
     return math.atan2(math.sin(world_angle - screen_angle), math.cos(world_angle - screen_angle))
 
 
-def click_ground(window, screen_angle, normal, cfg):
+def click_ground(state, window, screen_angle, normal, cfg):
     """Karakterin (ekran ortası) screen_angle yönünde boş bir yere tıklar.
-    Ekran açısı: 0 = sağ, pi/2 = yukarı. Mob üstüne tıklamamak için açıyı biraz kaydırır."""
+    Ekran açısı: 0 = sağ, pi/2 = yukarı. Mob üstüne tıklamamak için açıyı biraz kaydırır.
+    Saldırı imleci öğrenildiyse sadece o imleç noktayı engeller (oyuncu/item engellemez)."""
     radius = cfg["area"]["walk_click_px"]
     cx, cy = window.left + window.width / 2, window.top + window.height / 2
     for shift in (0, 0.25, -0.25, 0.5, -0.5):
         angle = screen_angle + shift
         x, y = cx + radius * math.cos(angle), cy - radius * math.sin(angle)
-        if not hover_shows_mob(x, y, normal, cfg):
+        move_mouse(x, y)
+        if not is_attack_cursor(stable_cursor(cfg), normal, state):
             click_mouse(jitter(cfg["click_hold_sec"], cfg["jitter_ratio"]))
             return True
     return False
@@ -928,7 +934,7 @@ def walk_home(state, sct, window, cfg):
             print("Başlangıç noktasına dönüldü.")
             return "arrived", step
         screen_angle = math.atan2(hy - pos[1], hx - pos[0]) - state.walk_offset
-        if not click_ground(window, screen_angle, normal, cfg):
+        if not click_ground(state, window, screen_angle, normal, cfg):
             return "no_ground", step
         wait(state, area["walk_wait_sec"], cfg)
         new = read_coords(sct, window, cfg)
