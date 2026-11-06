@@ -472,6 +472,9 @@ class BotState:
         self.stuck_count = 0                  # üst üste ulaşılamayan hedef sayısı
         self.search_hovers = 0                # son aramadaki fare gezdirme sayısı (log için)
         self.search_clicks = 0                # son aramadaki tıklama sayısı (log için)
+        self.search_cursors = {}              # son aramada görülen imleçler: kod -> sayı (log için)
+        self.search_late = 0                  # boşa tıklamadan sonra imleci farklı çıkanlar (log için)
+        self.walk_forced = 0                  # geri yürümede "mob" görünse de yapılan düz tıklamalar
         self.fight_hp = None                  # son dövüşün HP özeti (log için)
         self.zerk_at = 0.0                    # son zerk açma zamanı
         self.key_last = {}                    # tuş -> son basma zamanı (boş = hemen basılabilir)
@@ -929,6 +932,7 @@ def try_click_mob(state, sct, window, x, y, normal, cfg):
     state.search_hovers += 1
     move_mouse(x, y)
     cursor = stable_cursor(cfg)
+    state.search_cursors[cursor] = state.search_cursors.get(cursor, 0) + 1
     if not is_attack_cursor(cursor, normal, state):
         return False
     crop = grab_click_crop(sct, window, x, y) if cfg["miss_shots"]["enabled"] else None
@@ -941,6 +945,8 @@ def try_click_mob(state, sct, window, x, y, normal, cfg):
         state.selected_cursor = cursor
         return True
     state.bad_spots.append((x - window.left, y - window.top, time.time()))
+    if cursor_handle() != cursor:
+        state.search_late += 1   # imleç tıklamadan sonra değişti: okuma geç kalmış olabilir
     if crop is not None:
         save_miss_shot(crop[0], cfg, crop[1])
     return False
@@ -951,12 +957,15 @@ def select_target(state, sct, window, cfg):
     Dönüş: "selected" (hedef seçildi), "none" (ekranda etiket yok), "missed" (etiket var
     ama hiçbirinden hedef alınamadı)."""
     started = time.time()
-    state.search_hovers = state.search_clicks = 0
+    state.search_hovers = state.search_clicks = state.search_late = 0
+    state.search_cursors = {}
     labels = find_name_labels(grab_area(sct, window), cfg)
     candidates = label_hover_points(labels, window, cfg)[:cfg["max_labels_per_search"]]
     result = pick_candidate(state, sct, window, candidates, cfg) if candidates else "none"
     log_event("search", result=result, ms=round((time.time() - started) * 1000),
-              labels=len(candidates), hovers=state.search_hovers, clicks=state.search_clicks)
+              labels=len(candidates), hovers=state.search_hovers, clicks=state.search_clicks,
+              normal=state.normal_cursor, attack=sorted(state.attack_cursors),
+              cursors={str(k): v for k, v in state.search_cursors.items()}, late=state.search_late)
     if (result == "missed" and state.search_clicks >= cfg["cursor_reset_min_clicks"]
             and state.search_clicks == state.search_hovers):
         # Her noktada "mob var" denip hiçbiri hedef vermediyse önbellekteki normal imleç
@@ -1035,8 +1044,10 @@ def walk_home(state, sct, window, cfg):
     """Başlangıç noktasına adım adım yürür. Kameranın açısı bilinmediği için her adımda
     karakterin gerçekte hangi yöne gittiğine bakıp sonraki tıklamanın yönünü düzeltir.
     Dönüş: (sonuç, adım sayısı). Sonuç: "arrived", "no_coords", "interrupted",
-    "no_ground" (boş yer bulunamadı) veya "gave_up" (adımlar bitti)."""
+    "gave_up" (adımlar bitti). Her nokta "mob" görünse de eve doğru düz tıklanır (bazı
+    bilgisayarlarda imleç okuması güvenilmez); bunların sayısı state.walk_forced'a yazılır."""
     area = cfg["area"]
+    state.walk_forced = 0
     normal = cached_normal_cursor(state, window, cfg)
     pos = read_coords(sct, window, cfg)
     for step in range(area["max_walk_steps"]):
@@ -1052,7 +1063,11 @@ def walk_home(state, sct, window, cfg):
             return "arrived", step
         screen_angle = math.atan2(hy - pos[1], hx - pos[0]) - state.walk_offset
         if not click_ground(state, window, screen_angle, normal, cfg):
-            return "no_ground", step
+            radius = area["walk_click_px"]
+            move_mouse(window.left + window.width / 2 + radius * math.cos(screen_angle),
+                       window.top + window.height / 2 - radius * math.sin(screen_angle))
+            click_mouse(jitter(cfg["click_hold_sec"], cfg["jitter_ratio"]))
+            state.walk_forced += 1
         wait(state, area["walk_wait_sec"], cfg)
         new = read_coords(sct, window, cfg)
         if new is not None and math.hypot(new[0] - pos[0], new[1] - pos[1]) >= area["min_move"]:
@@ -1079,12 +1094,8 @@ def keep_in_area(state, sct, window, cfg):
     started = time.time()
     result, steps = walk_home(state, sct, window, cfg)
     log_event("walk", result=result, steps=steps, distance=round(distance),
-              sec=round(time.time() - started, 1))
-    if result == "no_ground":
-        # Her nokta "mob" göründü: önbellekteki normal imleç büyük ihtimalle bayat.
-        # Yeniden öğren ve hemen tekrar denemek yerine biraz bekle.
-        state.normal_cursor = None
-        wait(state, cfg["area"]["no_ground_wait_sec"], cfg)
+              sec=round(time.time() - started, 1), forced=state.walk_forced,
+              normal=state.normal_cursor)
     state.bad_spots = []
     return True
 

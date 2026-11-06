@@ -129,19 +129,22 @@ class CursorResetTest(unittest.TestCase):
 
 
 class WalkNoGroundTest(unittest.TestCase):
-    def test_no_ground_resets_cursor_and_waits(self):
-        # 01:32'deki durum: bayat imleç yüzünden her nokta "mob" göründü, geri yürüme
-        # hemen vazgeçti ve bekleme olmadan 113 kez tekrarlandı.
+    def test_all_points_blocked_still_walks_home(self):
+        # Arkadaşın bilgisayarı (07.11): zemin de saldırı imleci gibi göründü, geri yürüme her
+        # seferinde "no_ground" ile hiç tıklamadan vazgeçti ve 150 kez tekrarlandı.
+        # Artık her nokta "mob" görünse de eve doğru düz tıklanır.
         names = ("read_coords", "is_game_foreground", "move_mouse", "stable_cursor", "log_event",
-                 "wait")
+                 "wait", "click_mouse")
         originals = {n: getattr(bot, n) for n in names}
-        waits = []
-        bot.read_coords = lambda *a: (80, 0)
+        clicks, logs = [], []
+        positions = iter([(80, 0), (80, 0), (60, 0), (40, 0), (20, 0), (0, 0), (0, 0)])
+        bot.read_coords = lambda *a: next(positions)
         bot.is_game_foreground = lambda title: True
         bot.move_mouse = lambda x, y: None
         bot.stable_cursor = lambda cfg: 456   # her nokta normalden (123) farklı
-        bot.log_event = lambda *a, **k: None
-        bot.wait = lambda state, seconds, cfg: waits.append(seconds)
+        bot.log_event = lambda kind, **k: logs.append((kind, k))
+        bot.wait = lambda *a: None
+        bot.click_mouse = lambda *a: clicks.append(1)
         try:
             cfg = bot.load_config()
             state = bot.BotState()
@@ -150,11 +153,48 @@ class WalkNoGroundTest(unittest.TestCase):
             state.normal_cursor, state.normal_cursor_at = 123, time.time()
             window = bot.types.SimpleNamespace(left=0, top=0, width=2560, height=1440)
             self.assertTrue(bot.keep_in_area(state, None, window, cfg))
-            self.assertIsNone(state.normal_cursor)
-            self.assertEqual(waits, [cfg["area"]["no_ground_wait_sec"]])
+            walk = [k for kind, k in logs if kind == "walk"][0]
+            self.assertEqual(walk["result"], "arrived")
+            self.assertGreater(len(clicks), 0)
+            self.assertEqual(walk["forced"], len(clicks))   # hepsi zorunlu düz tıklama
         finally:
             for n, f in originals.items():
                 setattr(bot, n, f)
+
+
+class CursorDiagnosticsTest(unittest.TestCase):
+    """İmleç okuması geç kalıyor mu? Görülen imleçler ve boşa tıklamadan sonra aynı noktada
+    tekrar okunan imleç log'a yazılır."""
+
+    def setUp(self):
+        names = ("move_mouse", "stable_cursor", "click_mouse", "wait_for_target_bar",
+                 "cursor_handle", "log_event")
+        self.originals = {n: getattr(bot, n) for n in names}
+        bot.move_mouse = lambda x, y: None
+        bot.click_mouse = lambda *a: None
+        bot.log_event = lambda *a, **k: None
+        self.cfg = bot.load_config()
+        self.cfg["miss_shots"]["enabled"] = False
+        self.window = bot.types.SimpleNamespace(left=0, top=0, width=2560, height=1440)
+
+    def tearDown(self):
+        for n, f in self.originals.items():
+            setattr(bot, n, f)
+
+    def test_seen_cursors_are_counted(self):
+        state = bot.BotState()
+        bot.stable_cursor = lambda cfg: 1          # normal imleç: tıklanmaz
+        bot.try_click_mob(state, None, self.window, 500, 500, 1, self.cfg)
+        bot.try_click_mob(state, None, self.window, 600, 500, 1, self.cfg)
+        self.assertEqual(state.search_cursors, {1: 2})
+
+    def test_miss_records_late_cursor_change(self):
+        state = bot.BotState()
+        bot.stable_cursor = lambda cfg: 7          # "saldırı" sanıldı, tıklandı
+        bot.wait_for_target_bar = lambda *a: None  # hedef çıkmadı
+        bot.cursor_handle = lambda: 5              # imleç sonradan normale döndü
+        bot.try_click_mob(state, None, self.window, 500, 500, 1, self.cfg)
+        self.assertEqual(state.search_late, 1)
 
 
 class ClickGroundTest(unittest.TestCase):
