@@ -60,6 +60,7 @@ import ctypes
 import ctypes.wintypes as wt
 import json
 import math
+import queue
 import random
 import re
 import threading
@@ -86,10 +87,26 @@ pydirectinput.PAUSE = 0
 
 # ---------------------------------------------------------------- ayarlar
 
+# GUI'nin gösterdiği mesaj kuyruğu
+messages = queue.Queue()
+
+
+def say(text):
+    """Mesajı konsola yazar ve GUI için kuyruğa koyar."""
+    print(text)
+    messages.put(text)
+
+
 def load_config(path=CONFIG_PATH):
     """config.json dosyasını okuyup sözlük döndürür."""
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def save_config(cfg, path=CONFIG_PATH):
+    """Ayar sözlüğünü config.json dosyasına yazar."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 
 def log_event(kind, **data):
@@ -488,9 +505,9 @@ def hotkey_loop(state):
     while not state.stop_event.is_set():
         if key_pressed(VK_F11):
             set_running(state, not state.running)
-            print("[F11] Bot BAŞLADI" if state.running else "[F11] Bot DURAKLATILDI")
+            say("[F11] Bot BAŞLADI" if state.running else "[F11] Bot DURAKLATILDI")
         if key_pressed(VK_END):
-            print("[End] Bot durduruluyor...")
+            say("[End] Bot durduruluyor...")
             state.stop_event.set()
         time.sleep(0.05)
 
@@ -512,7 +529,7 @@ def stats_text(state):
 def stats_loop(state, cfg):
     """Belirli aralıklarla öldürülen mob sayısını ve çalışma süresini yazar."""
     while not state.stop_event.wait(cfg["stats_interval_sec"]):
-        print(f"[İstatistik] {stats_text(state)}")
+        say(f"[İstatistik] {stats_text(state)}")
 
 
 # ---------------------------------------------------------------- ölüm
@@ -526,7 +543,7 @@ def death_alarm():
 
 def handle_death(state):
     """Karakter öldüğünde botu durdurur ve uyarı verir."""
-    print("[!] Karakter öldü. Bot durduruluyor.")
+    say("[!] Karakter öldü. Bot durduruluyor.")
     state.stop_event.set()
     death_alarm()
 
@@ -567,7 +584,7 @@ def try_zerk(state, sct, window, cfg):
         send_key(zerk["key"], cfg)
         state.zerk_at = time.time()
         log_event("zerk")
-        print("Zerk doldu, zerk açıldı.")
+        say("Zerk doldu, zerk açıldı.")
 
 
 def is_stuck(start_hp, min_hp, elapsed, cfg):
@@ -846,7 +863,7 @@ def select_target(state, sct, window, cfg):
         # bozuktur; bot aslında boş yere tıklıyordur. Bir sonraki aramada yeniden öğren.
         state.normal_cursor = None
         log_event("cursor_reset", clicks=state.search_clicks)
-        print("Her tıklama boşa gitti, normal imleç yeniden öğrenilecek.")
+        say("Her tıklama boşa gitti, normal imleç yeniden öğrenilecek.")
     return result
 
 
@@ -931,7 +948,7 @@ def walk_home(state, sct, window, cfg):
             return "interrupted", step
         hx, hy = state.home
         if math.hypot(hx - pos[0], hy - pos[1]) <= area["arrive_radius"]:
-            print("Başlangıç noktasına dönüldü.")
+            say("Başlangıç noktasına dönüldü.")
             return "arrived", step
         screen_angle = math.atan2(hy - pos[1], hx - pos[0]) - state.walk_offset
         if not click_ground(state, window, screen_angle, normal, cfg):
@@ -941,7 +958,7 @@ def walk_home(state, sct, window, cfg):
         if new is not None and math.hypot(new[0] - pos[0], new[1] - pos[1]) >= area["min_move"]:
             state.walk_offset = learned_offset(pos, new, screen_angle)
         pos = new
-    print("Başlangıç noktasına ulaşılamadı, avlanmaya devam.")
+    say("Başlangıç noktasına ulaşılamadı, avlanmaya devam.")
     return "gave_up", area["max_walk_steps"]
 
 
@@ -953,12 +970,12 @@ def keep_in_area(state, sct, window, cfg):
         return False
     if state.home is None:
         state.home = pos
-        print(f"Başlangıç noktası: X:{pos[0]} Y:{pos[1]} (yarıçap {cfg['area']['radius']})")
+        say(f"Başlangıç noktası: X:{pos[0]} Y:{pos[1]} (yarıçap {cfg['area']['radius']})")
         return False
     distance = math.hypot(state.home[0] - pos[0], state.home[1] - pos[1])
     if distance <= cfg["area"]["radius"]:
         return False
-    print(f"Alan dışına çıkıldı ({distance:.0f} birim), geri dönülüyor.")
+    say(f"Alan dışına çıkıldı ({distance:.0f} birim), geri dönülüyor.")
     started = time.time()
     result, steps = walk_home(state, sct, window, cfg)
     log_event("walk", result=result, steps=steps, distance=round(distance),
@@ -989,7 +1006,7 @@ def bot_step(state, sct, window, cfg):
             return
         state.misses = 0 if found == "none" else state.misses + 1
         if found == "none" or state.misses >= cfg["misses_before_rotate"]:
-            print("Yakında mob bulunamadı, kamera döndürülüyor.")
+            say("Yakında mob bulunamadı, kamera döndürülüyor.")
             if found == "missed" and state.attack_cursors:
                 # Oyun imleci değiştirmiş olabilir; öğrenilenleri unut, sonraki öldürmede
                 # yeniden öğrenilir. Yoksa bot hiçbir yere tıklamadan takılı kalabilir.
@@ -998,12 +1015,12 @@ def bot_step(state, sct, window, cfg):
             rotate_camera(state, window, cfg)
             state.misses = 0
         else:
-            print(f"Mob'a tıklanamadı, tekrar deneniyor ({state.misses}/"
+            say(f"Mob'a tıklanamadı, tekrar deneniyor ({state.misses}/"
                   f"{cfg['misses_before_rotate']}).")
         wait(state, cfg["no_target_wait_sec"], cfg)
         return
     state.misses = 0
-    print("Hedef seçildi, dövüş başladı.")
+    say("Hedef seçildi, dövüş başladı.")
 
     fight_started = time.time()
     result = fight(state, sct, window, cfg)
@@ -1015,9 +1032,9 @@ def bot_step(state, sct, window, cfg):
         # Mob'a ulaşılamıyor: o noktayı bir süre yasakla, başka mob seç.
         state.bad_spots.append((*state.last_click, time.time()))
         state.stuck_count += 1
-        print(f"Hedefin HP'si {cfg['stuck_sec']} sn'de düşmedi (takıldı), başka mob aranıyor.")
+        say(f"Hedefin HP'si {cfg['stuck_sec']} sn'de düşmedi (takıldı), başka mob aranıyor.")
         if state.stuck_count >= cfg["stuck_before_rotate"]:
-            print("Üst üste takıldı, kamera döndürülüyor.")
+            say("Üst üste takıldı, kamera döndürülüyor.")
             rotate_camera(state, window, cfg)
             state.stuck_count = 0
     elif result == "killed":
@@ -1026,11 +1043,11 @@ def bot_step(state, sct, window, cfg):
             return
         state.kills += 1
         learn_attack_cursor(state)
-        print(f"Mob öldü #{state.kills} | {stats_text(state)}")
+        say(f"Mob öldü #{state.kills} | {stats_text(state)}")
         wait(state, cfg["after_kill_wait_sec"], cfg)
     elif result == "lost":
         # Bizim hasarımız görülmeden kayboldu: sayılmaz.
-        print("Hedef kayboldu, sayılmadı.")
+        say("Hedef kayboldu, sayılmadı.")
 
 
 def main_loop(state, cfg):
@@ -1043,7 +1060,7 @@ def main_loop(state, cfg):
                 continue
             window = find_game_window(title)
             if window is None or not is_game_foreground(title):
-                print(f"[Uyarı] '{title}' penceresi ön planda değil, bekleniyor...")
+                say(f"[Uyarı] '{title}' penceresi ön planda değil, bekleniyor...")
                 state.stop_event.wait(cfg["foreground_wait_sec"])
                 continue
             bot_step(state, sct, game_area(window), cfg)
@@ -1057,13 +1074,13 @@ def main():
     threading.Thread(target=hotkey_loop, args=(state,), daemon=True).start()
     threading.Thread(target=stats_loop, args=(state, cfg), daemon=True).start()
 
-    print("Bot hazır. F11: başlat/duraklat | End: tamamen durdur")
+    say("Bot hazır. F11: başlat/duraklat | End: tamamen durdur")
     try:
         main_loop(state, cfg)
     except KeyboardInterrupt:
         state.stop_event.set()
     set_running(state, False)
-    print(f"Bot durdu. {stats_text(state)}")
+    say(f"Bot durdu. {stats_text(state)}")
 
 
 if __name__ == "__main__":
