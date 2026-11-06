@@ -23,6 +23,32 @@ class GuiSupportTests(unittest.TestCase):
             self.assertEqual(bot.load_config(path), {"death_say": "Sen bir malsın Fethi"})
             self.assertIn("malsın", path.read_text(encoding="utf-8"))  # ensure_ascii=False
 
+    def test_due_keys_respects_interval(self):
+        s = bot.BotState()
+        self.assertEqual(bot.due_keys(s, KEYS, True, 100.0), ["1", "f1"])
+        self.assertEqual(bot.due_keys(s, KEYS, True, 101.0), [])
+        self.assertEqual(bot.due_keys(s, KEYS, True, 102.0), ["1"])
+
+    def test_fight_keys_not_pressed_outside_fight(self):
+        s = bot.BotState()
+        self.assertEqual(bot.due_keys(s, KEYS, False, 100.0), ["f1"])
+
+    def test_zero_interval_always_due(self):
+        s = bot.BotState()
+        k = [{"key": "1", "every_sec": 0, "when": "fight"}]
+        self.assertEqual(bot.due_keys(s, k, True, 100.0), ["1"])
+        self.assertEqual(bot.due_keys(s, k, True, 100.0), ["1"])
+
+    def test_old_list_format(self):
+        self.assertEqual(bot.normalize_keys(["1", "2"]),
+                         [{"key": "1", "every_sec": 0, "when": "fight"},
+                          {"key": "2", "every_sec": 0, "when": "fight"}])
+        self.assertEqual(bot.normalize_keys(KEYS), KEYS)
+
+
+KEYS = [{"key": "1", "every_sec": 2, "when": "fight"},
+        {"key": "f1", "every_sec": 300, "when": "always"}]
+
 
 if __name__ == "__main__":
     unittest.main()

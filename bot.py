@@ -461,6 +461,7 @@ class BotState:
         self.search_clicks = 0                # son aramadaki tıklama sayısı (log için)
         self.fight_hp = None                  # son dövüşün HP özeti (log için)
         self.zerk_at = 0.0                    # son zerk açma zamanı
+        self.key_last = {}                    # tuş -> son basma zamanı (boş = hemen basılabilir)
         self.attack_cursors = set()           # mob öldürülen tıklamalardaki imleçler
         self.selected_cursor = None           # seçili hedefe tıklarken görülen imleç
 
@@ -593,13 +594,30 @@ def is_stuck(start_hp, min_hp, elapsed, cfg):
     return elapsed >= cfg["stuck_sec"] and start_hp - min_hp < cfg["kill_min_damage"]
 
 
+def normalize_keys(raw):
+    """skill_keys'i [{"key", "every_sec", "when"}] biçimine çevirir (eski ["1", "2"] listesi dahil)."""
+    return [{"key": k, "every_sec": 0, "when": "fight"} if isinstance(k, str) else k
+            for k in raw]
+
+
+def due_keys(state, keys, in_fight, now):
+    """Şu an basılması gereken tuşları döndürür ve basma zamanını state.key_last'e yazar.
+    "when": "fight" tuşları sadece dövüşte, "always" tuşları her zaman basılır."""
+    due = []
+    for k in keys:
+        if k["when"] == "fight" and not in_fight:
+            continue
+        if now - state.key_last.get(k["key"], float("-inf")) >= k["every_sec"]:
+            state.key_last[k["key"]] = now
+            due.append(k["key"])
+    return due
+
+
 def fight(state, sct, window, cfg):
     """Hedef ölene ya da kaybolana kadar bekler.
     Dönüş: "killed", "lost" (ölmeden kayboldu), "stuck" (HP "stuck_sec" boyunca düşmedi)
     veya "interrupted". Süre sınırı yok: HP düştüğü sürece güçlü mob'larda da dövüş sürer.
     """
-    skills = cfg["skill_keys"]
-    skill_index = 0
     start_hp = min_hp = None
     state.fight_hp = None
     while True:
@@ -626,9 +644,8 @@ def fight(state, sct, window, cfg):
         if is_stuck(progress_hp, min_hp, time.time() - progress_at, cfg):
             return "stuck"
         try_zerk(state, sct, window, cfg)
-        if skills:
-            send_key(skills[skill_index % len(skills)], cfg)
-            skill_index += 1
+        for k in due_keys(state, normalize_keys(cfg["skill_keys"]), True, time.time()):
+            send_key(k, cfg)
         wait(state, cfg["check_interval_sec"], cfg)
 
 
@@ -996,6 +1013,9 @@ def bot_step(state, sct, window, cfg):
     if player_dead(sct, window, cfg):
         handle_death(state)
         return
+
+    for k in due_keys(state, normalize_keys(cfg["skill_keys"]), False, time.time()):
+        send_key(k, cfg)
 
     if cfg["area"]["enabled"] and keep_in_area(state, sct, window, cfg):
         return
