@@ -1,5 +1,6 @@
 """GUI desteği testleri (say kuyruğu, save_config). Çalıştırma: python -m unittest discover tests"""
 
+import base64
 import sys
 import tempfile
 import unittest
@@ -44,6 +45,36 @@ class GuiSupportTests(unittest.TestCase):
                          [{"key": "1", "every_sec": 0, "when": "fight"},
                           {"key": "2", "every_sec": 0, "when": "fight"}])
         self.assertEqual(bot.normalize_keys(KEYS), KEYS)
+
+
+class DeathSpeechTests(unittest.TestCase):
+    def setUp(self):
+        self._speak, self._alarm = bot.speak, bot.death_alarm
+
+    def tearDown(self):
+        bot.speak, bot.death_alarm = self._speak, self._alarm
+
+    def test_death_speaks_message(self):
+        said = []
+        bot.speak, bot.death_alarm = said.append, lambda: None
+        s = bot.BotState()
+        bot.handle_death(s, {"death_say": "Sen bir malsın Fethi"})
+        self.assertEqual(said, ["Sen bir malsın Fethi"])
+        self.assertTrue(s.dead and s.stop_event.is_set())
+
+    def test_empty_message_is_silent(self):
+        said = []
+        bot.speak, bot.death_alarm = said.append, lambda: None
+        s = bot.BotState()
+        bot.handle_death(s, {"death_say": ""})
+        bot.handle_death(s, {})
+        self.assertEqual(said, [])
+
+    def test_speech_command_survives_quotes(self):
+        cmd = bot.speech_command("Fethi'nin \"malı\"")
+        self.assertNotIn("Fethi", " ".join(cmd))
+        b64 = cmd[-1].split("'")[1]
+        self.assertEqual(base64.b64decode(b64).decode("utf-8"), "Fethi'nin \"malı\"")
 
 
 KEYS = [{"key": "1", "every_sec": 2, "when": "fight"},

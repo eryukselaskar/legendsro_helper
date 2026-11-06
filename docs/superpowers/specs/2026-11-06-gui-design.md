@@ -82,7 +82,7 @@ Davranış:
 - `cfg["death_say"]`, varsayılan "Sen bir malsın Fethi". Boşsa konuşmaz.
 - PowerShell + `System.Speech` ile söylenir; kurulu `tr-TR` ses varsa o seçilir
   (bu bilgisayarda "Microsoft Tolga"), yoksa varsayılan ses. Ek Python paketi gerekmez.
-- Metin PowerShell'e komut satırında değil standart girdiden verilir (tırnak/kaçış sorunu
+- Metin PowerShell'e base64 olarak komut satırından verilir (tırnak/kaçış sorunu
   olmasın).
 - Konuşma hata verirse bot yine durur; hata mesajı `say` ile yazılır.
 

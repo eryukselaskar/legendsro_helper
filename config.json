@@ -131,5 +131,6 @@
     "bar_dark_max": 90,
     "bar_fill_min": 0.85
   },
-  "fight_timeout_sec": 40
+  "fight_timeout_sec": 40,
+  "death_say": "Sen bir malsın Fethi"
 }

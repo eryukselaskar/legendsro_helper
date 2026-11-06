@@ -56,6 +56,7 @@ VARSAYIMLAR
 - F11 / End kısayolları global olarak okunur (oyun ön plandayken de çalışır).
 """
 
+import base64
 import ctypes
 import ctypes.wintypes as wt
 import json
@@ -63,6 +64,7 @@ import math
 import queue
 import random
 import re
+import subprocess
 import threading
 import time
 import types
@@ -444,6 +446,7 @@ class BotState:
     def __init__(self):
         self.running = False                  # F11 ile değişir
         self.stop_event = threading.Event()   # End ile set edilir
+        self.dead = False                     # karakter öldü mü
         self.kills = 0
         self.bad_spots = []                   # hedef vermeyen tıklamalar: (x, y, zaman)
         self.misses = 0                       # üst üste sonuçsuz hedef aramaları
@@ -542,11 +545,40 @@ def death_alarm():
         time.sleep(0.15)
 
 
-def handle_death(state):
-    """Karakter öldüğünde botu durdurur ve uyarı verir."""
+def speech_command(text):
+    """Metni Windows'un Türkçe sesiyle söyleyen PowerShell komutu. Metin base64 ile
+    taşınır, böylece tırnak/kaçış sorunu olmaz."""
+    b64 = base64.b64encode(text.encode("utf-8")).decode("ascii")
+    script = (
+        f"$t = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{b64}')); "
+        "Add-Type -AssemblyName System.Speech; "
+        "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+        "$v = $s.GetInstalledVoices() | Where-Object { $_.VoiceInfo.Culture.Name -eq 'tr-TR' } "
+        "| Select-Object -First 1; "
+        "if ($v) { $s.SelectVoice($v.VoiceInfo.Name) }; "
+        "$s.Speak($t)"
+    )
+    return ["powershell", "-NoProfile", "-Command", script]
+
+
+def speak(text):
+    """Cümleyi sesli söyler; takılırsa 30 sn sonra vazgeçer."""
+    try:
+        subprocess.run(speech_command(text), timeout=30,
+                       creationflags=subprocess.CREATE_NO_WINDOW)
+    except Exception as e:
+        say(f"[Uyarı] Konuşma çalışmadı: {e}")
+
+
+def handle_death(state, cfg):
+    """Karakter öldüğünde botu durdurur, uyarı verir ve cümleyi söyler."""
     say("[!] Karakter öldü. Bot durduruluyor.")
+    state.dead = True
     state.stop_event.set()
     death_alarm()
+    text = cfg.get("death_say", "")
+    if text:
+        speak(text)
 
 
 # ---------------------------------------------------------------- dövüş
@@ -1011,7 +1043,7 @@ def keep_in_area(state, sct, window, cfg):
 def bot_step(state, sct, window, cfg):
     """Ana döngünün bir turu: hedef seç, varsa dövüş, sonucu işle."""
     if player_dead(sct, window, cfg):
-        handle_death(state)
+        handle_death(state, cfg)
         return
 
     for k in due_keys(state, normalize_keys(cfg["skill_keys"]), False, time.time()):
@@ -1059,7 +1091,7 @@ def bot_step(state, sct, window, cfg):
             state.stuck_count = 0
     elif result == "killed":
         if player_dead(sct, window, cfg):   # bar karakter öldüğü için kaybolmuş olabilir
-            handle_death(state)
+            handle_death(state, cfg)
             return
         state.kills += 1
         learn_attack_cursor(state)
