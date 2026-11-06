@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import bot  # noqa: E402
+import settings_rules as rules  # noqa: E402
 
 
 class GuiSupportTests(unittest.TestCase):
@@ -85,6 +86,27 @@ class DeathSpeechTests(unittest.TestCase):
             bot.speak("merhaba")
         self.assertEqual(len(said), 1)
         self.assertTrue(said[0].startswith("[Uyarı] Konuşma çalışmadı"))
+
+
+class SettingsRulesTests(unittest.TestCase):
+    def test_valid_values(self):
+        self.assertEqual(rules.parse_seconds("2.5"), 2.5)
+        self.assertEqual(rules.parse_seconds(" 0 "), 0.0)
+        self.assertEqual(rules.parse_radius("50"), 50)
+        self.assertEqual(rules.parse_key(" F1 "), "f1")
+        self.assertEqual(rules.parse_key("TAB"), "tab")
+        self.assertEqual(rules.parse_title("  Legends  "), "Legends")
+
+    def test_invalid_values(self):
+        for fn, bad in [(rules.parse_seconds, "-1"), (rules.parse_seconds, "abc"),
+                        (rules.parse_seconds, "nan"), (rules.parse_seconds, "inf"),
+                        (rules.parse_radius, "0"), (rules.parse_radius, "5.5"),
+                        (rules.parse_radius, "nan"), (rules.parse_radius, "inf"),
+                        (rules.parse_key, ""), (rules.parse_key, "uzay"),
+                        (rules.parse_title, "  ")]:
+            with self.subTest(bad):
+                with self.assertRaises(ValueError):
+                    fn(bad)
 
 
 KEYS = [{"key": "1", "every_sec": 2, "when": "fight"},
